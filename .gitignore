@@ -1,0 +1,14 @@
+.venv/
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+target/
+!target/allure-results/
+.idea/
+.vscode/
+*.iml
+.flake8
+.DS_Store
+Thumbs.db
