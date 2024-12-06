@@ -1,6 +1,8 @@
 import requests
+from urls import CREATE_COURIER_URL
 import random
 import string
+
 
 def generate_random_string(length=10):
     """Генерирует случайную строку из букв нижнего регистра."""
@@ -8,24 +10,17 @@ def generate_random_string(length=10):
 
 def register_new_courier():
     """Регистрирует нового курьера и возвращает его данные (логин, пароль, имя)."""
-    # Создаем случайные данные для курьера
     login = generate_random_string()
     password = generate_random_string()
     first_name = generate_random_string()
 
-    # Тело запроса
     payload = {
         "login": login,
         "password": password,
         "firstName": first_name
     }
 
-    # Отправляем запрос
-    response = requests.post('https://qa-scooter.praktikum-services.ru/api/v1/courier', json=payload)
-
-    # Если успешный ответ, возвращаем данные курьера
+    response = requests.post(CREATE_COURIER_URL, json=payload)
     if response.status_code == 201:
-        return {"login": login, "password": password, "firstName": first_name}
-
-    # Если неуспешно, возвращаем None
+        return payload
     return None

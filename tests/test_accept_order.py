@@ -1,63 +1,65 @@
 import allure
-from unittest.mock import patch
-from pages.order_page import OrderPage
 import pytest
+from pages.order_api import OrderPage
+from data import VALID_ORDER_PAYLOAD
 
 
-# Фикстуры
-@pytest.fixture
-def mock_missing_order_id_response():
-    return {"message": "Order ID is required"}
-
-
-@pytest.fixture
-def mock_not_found_order_response():
-    return {"message": "Order not found"}
-
-
-@pytest.mark.parametrize("order_id, expected_status, expected_message", [
-    (1, 200, "id"),
-    (None, 400, "Order ID is required"),
-    (99999, 404, "Order not found")
-])
-@patch('requests.get')
 @allure.feature("Order API")
-@allure.story("Get order by ID")
-def test_get_order(mock_get, order_id, expected_status, expected_message, mock_successful_get_order_response,
-                   mock_missing_order_id_response, mock_not_found_order_response):
-    """
-    Тест для получения заказа по ID.
-    Проверяет успешный запрос, отсутствие ID и несуществующий заказ.
-    """
+@allure.story("Get order by tracking number")
+class TestGetOrderByTrack:
+    """Тесты для получения заказа по трек-номеру."""
 
-    # Настроим моки для различных случаев
-    if order_id is None:
-        mock_get.return_value.status_code = 400
-        mock_get.return_value.json.return_value = mock_missing_order_id_response
-        with allure.step("Setup: Simulate missing order ID"):
-            pass
-    elif order_id == 99999:
-        mock_get.return_value.status_code = 404
-        mock_get.return_value.json.return_value = mock_not_found_order_response
-        with allure.step("Setup: Simulate order not found"):
-            pass
-    else:
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = mock_successful_get_order_response
-        with allure.step("Setup: Simulate successful order retrieval"):
-            pass
+    @allure.title("Test getting an order by track number successfully")
+    def test_get_order_success(self):
+        """Проверка успешного запроса на получение заказа по трек-номеру."""
+        payload = VALID_ORDER_PAYLOAD.copy()
+        payload["color"] = ["BLACK"]
 
-    # Выполнение запроса
-    with allure.step(f"Send GET request for order ID {order_id}"):
-        response = OrderPage.get_order_by_id(order_id)
+        # Создание нового заказа
+        with allure.step("Create a new order"):
+            create_response = OrderPage.create_order(payload)
+            assert create_response.status_code == 201, "Failed to create order"
+            track = create_response.json().get("track")
+            assert track, "Track number is missing in the response"
 
-    # Проверка
-    with allure.step(f"Validate response status and content for order ID {order_id}"):
-        assert response.status_code == expected_status, f"Expected {expected_status}, got {response.status_code}"
-        if expected_status == 200:
-            assert "id" in response.json(), "Expected 'id' in response"
-            assert response.json()["id"] == order_id, f"Expected order ID {order_id}, got {response.json()['id']}"
-        else:
-            assert "message" in response.json(), "Expected 'message' in response"
-            assert response.json()[
-                       "message"] == expected_message, f"Expected '{expected_message}' message, got {response.json()['message']}"
+        # Запрос на получение заказа по трек-номеру
+        with allure.step("Get the order by track number with retries"):
+            responses = [
+                OrderPage.get_order_by_track(track)
+                for _ in range(10)
+            ]
+
+        # Проверка наличия успешного ответа
+        response = next(
+            (resp for resp in responses if resp.status_code == 200), None
+        )
+        assert response, f"Order with track {track} was not found within retries."
+
+        # Проверка данных заказа
+        with allure.step("Validate the response for the order"):
+            response_json = response.json()
+            assert "order" in response_json, "Response does not contain 'order'"
+            assert response_json["order"]["track"] == track, "Track number does not match"
+    @allure.title("Test getting an order with missing track number")
+    def test_get_order_without_tracking_number(self):
+        """Проверка запроса без трек-номера."""
+        with pytest.raises(ValueError, match="Track number is required"):
+            OrderPage.get_order_by_track("")
+
+    @allure.title("Test getting a non-existent order")
+    def test_get_order_not_found(self):
+        """Проверка запроса на получение несуществующего заказа по трек-номеру."""
+        non_existent_track_number = 99999999  # Несуществующий трек-номер
+
+        with allure.step(f"Send GET request for non-existent track number {non_existent_track_number}"):
+            response = OrderPage.get_order_by_track(non_existent_track_number)
+
+        with allure.step("Validate the response for non-existent order"):
+            assert response.status_code == 404, (
+                f"Expected 404, got {response.status_code}, Response body: {response.json()}"
+            )
+            response_json = response.json()
+            assert "message" in response_json, "Response does not contain 'message'"
+            assert response_json["message"] == "Заказ не найден", (
+                f"Expected 'Not Found.', got '{response_json['message']}'"
+            )
