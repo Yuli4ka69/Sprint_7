@@ -19,7 +19,7 @@ HEADERS = {
 ERROR_MESSAGE_NOT_FOUND = "Учетная запись не найдена"
 ERROR_MESSAGE_BAD_REQUEST = "Недостаточно данных для входа"
 ERROR_MESSAGE_MISSING_COURIER_FIELDS = "Недостаточно данных для создания учетной записи"
-ERROR_MESSAGE_DUPLICATE_LOGIN = "Этот логин уже используется. Попробуйте другой"
+ERROR_MESSAGE_DUPLICATE_LOGIN = "Этот логин уже используется. Попробуйте другой."
 
 # Ожидаемые статусы для различных сценариев
 HTTP_STATUS_OK = 200

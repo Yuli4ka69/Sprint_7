@@ -1,52 +1,35 @@
 import allure
 import pytest
 from pages.courier_api import CourierPage
-from helpers import generate_random_string, register_new_courier
 
 
-@pytest.fixture(scope="class", autouse=True)
+@pytest.fixture(scope="class")
 def setup_and_teardown():
     """
     Фикстура для регистрации уникального курьера перед тестами.
     """
     with allure.step("Регистрация уникального курьера перед тестами"):
-        courier_data = register_new_courier()
+        courier_data = CourierPage.register_new_courier()
         yield courier_data
 
 
-@pytest.fixture
-def valid_login_payload(setup_and_teardown):
-    return {
-        "login": setup_and_teardown["login"],
-        "password": setup_and_teardown["password"],
-    }
-
-
-@pytest.fixture
+@pytest.fixture(scope="class")  # Устанавливаем scope="class", чтобы фикстура выполнялась один раз на класс
 def create_courier():
     """Фикстура для создания курьера и получения его ID через авторизацию."""
+    courier_data = CourierPage.register_new_courier()
+    assert courier_data is not None, "Courier creation failed"
+    assert "id" in courier_data, "Courier ID not found in the response"
 
-    # Создаем курьера
-    courier_payload = {
-        "login": generate_random_string(),
-        "password": generate_random_string(),
-        "firstName": generate_random_string(),
-    }
-
-    # Создаем курьера через API и игнорируем ответ
-    CourierPage.create_courier(courier_payload)  # Здесь результат не используется
-
-    # Авторизация курьера для получения ID
     login_payload = {
-        "login": courier_payload["login"],
-        "password": courier_payload["password"],
+        "login": courier_data["login"],
+        "password": courier_data["password"],
     }
+
     auth_response = CourierPage.login_courier(login_payload)
-
     courier_id = auth_response.json().get("id")
+    assert courier_id is not None, f"Failed to authorize courier, no ID returned. Response: {auth_response.text}"
 
-    # Передаем ID курьера в тесты
-    yield courier_id
+    yield courier_data
 
-    # Удаляем курьера после завершения всех тестов
+    # Удаление курьера после выполнения всех тестов
     CourierPage.delete_courier(courier_id)

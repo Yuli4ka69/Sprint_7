@@ -2,6 +2,7 @@ import requests
 import allure
 import logging
 from requests.exceptions import RequestException
+from helpers import generate_random_string
 from urls import (
     COURIER_LOGIN_URL,
     CREATE_COURIER_URL,
@@ -27,18 +28,55 @@ class CourierPage:
         return response
 
     @staticmethod
-    @allure.step("Создание курьера")
-    def create_courier(payload):
+    @allure.step("Регистрация нового курьера")
+    def register_new_courier(courier_data=None):
         """
-        Создание курьера.
+        Регистрирует нового курьера и возвращает его данные (логин, пароль, имя, ID).
+        Если данные о курьере не переданы, генерируются случайные данные.
         """
-        try:
-            response = requests.post(CREATE_COURIER_URL, json=payload, timeout=30)
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            allure.attach(str(response.text), name="HTTP Error Response", attachment_type=allure.attachment_type.TEXT)
-            return response  # Возвращаем ответ, чтобы тест его обработал
-        return response
+        if courier_data is None:
+            courier_data = {
+                "login": generate_random_string(),
+                "password": generate_random_string(),
+                "firstName": generate_random_string(),
+            }
+
+        # Отправляем запрос на создание курьера
+        response = requests.post(CREATE_COURIER_URL, json=courier_data, timeout=30)
+
+        # Если ответ 409, значит курьер с такими данными уже существует, и это нормально
+        if response.status_code == 409:
+            return {
+                "login": courier_data["login"],
+                "password": courier_data["password"],
+                "firstName": courier_data["firstName"],
+                "status_code": response.status_code
+            }
+
+        # Для других ошибок генерируем исключение
+        if response.status_code != 201:
+            raise requests.exceptions.HTTPError(
+                f"{response.status_code} Client Error: {response.reason} for url: {response.url}"
+            )
+
+        # Авторизуемся, чтобы получить ID
+        login_payload = {
+            "login": courier_data["login"],
+            "password": courier_data["password"],
+        }
+        auth_response = requests.post(COURIER_LOGIN_URL, json=login_payload, timeout=30)
+        auth_response.raise_for_status()
+
+        courier_id = auth_response.json().get("id")
+        assert courier_id is not None, "Courier ID should not be None"
+
+        return {
+            "login": courier_data["login"],
+            "password": courier_data["password"],
+            "firstName": courier_data["firstName"],
+            "id": courier_id,
+            "status_code": response.status_code
+        }
 
     @staticmethod
     @allure.step("Авторизация курьера с данными: {payload}")
@@ -61,9 +99,9 @@ class CourierPage:
         :param courier_id: ID курьера
         :return: Ответ API
         """
-        url = DELETE_COURIER_URL.format(id=courier_id)  # Используем URL из data.py
+        url = DELETE_COURIER_URL.format(id=courier_id)
         response = requests.delete(url)
-        response.raise_for_status()  # Генерирует исключение при ошибке
+        response.raise_for_status()
         return response
 
     @staticmethod

@@ -1,6 +1,7 @@
 import allure
-from helpers import generate_random_string
+import requests
 from pages.courier_api import CourierPage
+from urls import CREATE_COURIER_URL
 from data import (
     HTTP_STATUS_BAD_REQUEST,
     HTTP_STATUS_CONFLICT,
@@ -16,56 +17,67 @@ class TestCreateCourier:
     @allure.title("Test successful courier creation")
     def test_create_courier_success(self, create_courier):
         """Проверка успешного создания курьера."""
-        courier_id = create_courier
-        assert courier_id is not None, "Courier ID should not be None after successful creation"
+        courier_data = create_courier  # Получаем данные курьера
+        assert courier_data['id'] is not None, "Courier ID should not be None after successful creation"
+        assert courier_data['login'] is not None, "Courier login should not be None"
+        assert courier_data['password'] is not None, "Courier password should not be None"
+        assert courier_data['firstName'] is not None, "Courier firstName should not be None"
 
-    @allure.title("Test courier creation with duplicate payload")
     def test_create_courier_duplicate(self, create_courier):
-        """Нельзя создать двух одинаковых курьеров."""
-        valid_courier_payload = {
-            "login": generate_random_string(),
-            "password": generate_random_string(),
-            "firstName": generate_random_string(),
-        }
-        CourierPage.create_courier(valid_courier_payload)
-        response = CourierPage.create_courier(valid_courier_payload)
-        assert response.status_code == HTTP_STATUS_CONFLICT, f"Expected {HTTP_STATUS_CONFLICT}, got {response.status_code}"
+        """Нельзя создать двух одинаковых курьеров с одинаковыми данными."""
+        courier_data = create_courier
 
-        assert response.json()["message"] == f"{ERROR_MESSAGE_DUPLICATE_LOGIN}.", (
-            f"Expected message: {ERROR_MESSAGE_DUPLICATE_LOGIN}., got {response.json()['message']}"
+        duplicate_courier_data = {
+            "login": courier_data["login"],
+            "password": courier_data["password"],
+            "firstName": courier_data["firstName"]
+        }
+
+        response_duplicate = CourierPage.register_new_courier(duplicate_courier_data)
+
+        assert response_duplicate["status_code"] == HTTP_STATUS_CONFLICT, (
+            f"Expected status code {HTTP_STATUS_CONFLICT}, got {response_duplicate['status_code']}"
         )
 
     @allure.title("Test courier creation with missing fields")
     def test_create_courier_missing_fields(self):
-        """Проверка создания курьера без обязательных полей."""
-        required_fields = ["login", "password"]
-        for field in required_fields:
-            invalid_payload = {
-                "login": generate_random_string(),
-                "password": generate_random_string(),
-            }
-            invalid_payload.pop(field)
-            response = CourierPage.create_courier(invalid_payload)
+        """Тест для проверки ошибки при создании курьера с отсутствующими обязательными полями."""
 
-            assert response.status_code == HTTP_STATUS_BAD_REQUEST, (
-                f"Expected {HTTP_STATUS_BAD_REQUEST}, got {response.status_code}"
-            )
-            assert response.json()["message"] == ERROR_MESSAGE_MISSING_COURIER_FIELDS, (
-                f"Expected message '{ERROR_MESSAGE_MISSING_COURIER_FIELDS}', got '{response.json()['message']}'"
-            )
-
-    @allure.title("Test creating courier with duplicate login")
-    def test_create_courier_duplicate_login(self, create_courier):
-        """Нельзя создать курьера с уже существующим логином."""
-        valid_courier_payload = {
-            "login": generate_random_string(),
-            "password": generate_random_string(),
-            "firstName": generate_random_string(),
+        # Отправляем запрос без логина
+        payload_missing_login = {
+            "password": "password123",
+            "firstName": "New Courier"
         }
-        CourierPage.create_courier(valid_courier_payload)
-        response = CourierPage.create_courier(valid_courier_payload)
-        assert response.status_code == HTTP_STATUS_CONFLICT, f"Expected {HTTP_STATUS_CONFLICT}, got {response.status_code}"
-        assert response.json()["message"] == f"{ERROR_MESSAGE_DUPLICATE_LOGIN}.", (
-            f"Expected message: {ERROR_MESSAGE_DUPLICATE_LOGIN}., got {response.json()['message']}"
-        )
+        response_missing_login = requests.post(CREATE_COURIER_URL, json=payload_missing_login)
+        assert response_missing_login.status_code == HTTP_STATUS_BAD_REQUEST, f"Expected {HTTP_STATUS_BAD_REQUEST} status, got {response_missing_login.status_code}"
+        assert response_missing_login.json().get(
+            "message") == ERROR_MESSAGE_MISSING_COURIER_FIELDS, "Error message doesn't match"
 
+        # Отправляем запрос без пароля
+        payload_missing_password = {
+            "login": "uniqueLogin123",
+            "firstName": "New Courier"
+        }
+        response_missing_password = requests.post(CREATE_COURIER_URL, json=payload_missing_password)
+        assert response_missing_password.status_code == HTTP_STATUS_BAD_REQUEST, f"Expected {HTTP_STATUS_BAD_REQUEST} status, got {response_missing_password.status_code}"
+        assert response_missing_password.json().get(
+            "message") == ERROR_MESSAGE_MISSING_COURIER_FIELDS, "Error message doesn't match"
+
+    @allure.title("Test courier creation with duplicate login")
+    def test_create_courier_duplicate_login(self, create_courier):
+        """Тест для проверки ошибки при создании курьера с уже существующим логином."""
+        courier_data = create_courier
+
+        duplicate_courier_data = {
+            "login": courier_data["login"],
+            "password": "newpassword",
+            "firstName": "New Courier"
+        }
+
+        response = requests.post(CREATE_COURIER_URL, json=duplicate_courier_data)
+
+        print(response.text)
+
+        assert response.status_code == HTTP_STATUS_CONFLICT, f"Expected {HTTP_STATUS_CONFLICT} status, got {response.status_code}"
+        assert response.json().get(
+            "message") == ERROR_MESSAGE_DUPLICATE_LOGIN, f"Expected error message '{ERROR_MESSAGE_DUPLICATE_LOGIN}', got '{response.json().get('message')}'"

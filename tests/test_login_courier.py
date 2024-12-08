@@ -1,3 +1,4 @@
+import pytest
 import allure
 from pages.courier_api import CourierPage
 from data import (
@@ -8,15 +9,19 @@ from data import (
     ERROR_MESSAGE_NOT_FOUND,
 )
 
-
 @allure.feature("Courier Management")
 class TestCourierLogin:
     """Тесты для авторизации курьера."""
 
     @allure.story("Successful Login")
     @allure.title("Test courier can login successfully")
-    def test_courier_can_login(self, valid_login_payload):
+    def test_courier_can_login(self, setup_and_teardown):
         """Курьер может успешно авторизоваться."""
+        valid_login_payload = {
+            "login": setup_and_teardown["login"],
+            "password": setup_and_teardown["password"]
+        }
+
         with allure.step("Send POST request to login courier"):
             response = CourierPage.login_courier(valid_login_payload)
 
@@ -30,13 +35,14 @@ class TestCourierLogin:
 
     @allure.story("Courier Login Error Cases")
     @allure.title("Test courier login without login")
-    def test_login_without_login(self, valid_login_payload):
+    def test_login_without_login(self, setup_and_teardown):
         """Запрос без логина возвращает ошибку."""
-        payload = valid_login_payload.copy()
-        payload.pop("login", None)
+        valid_login_payload = {
+            "password": setup_and_teardown["password"]
+        }
 
         with allure.step("Send POST request without login"):
-            response = CourierPage.login_courier(payload)
+            response = CourierPage.login_courier(valid_login_payload)
 
         with allure.step("Validate response for missing login"):
             assert response.status_code == HTTP_STATUS_BAD_REQUEST, (
@@ -49,13 +55,14 @@ class TestCourierLogin:
 
     @allure.story("Courier Login Error Cases")
     @allure.title("Test courier login without password")
-    def test_login_without_password(self, valid_login_payload):
+    def test_login_without_password(self, setup_and_teardown):
         """Запрос без пароля возвращает ошибку."""
-        payload = valid_login_payload.copy()
-        payload.pop("password", None)
+        valid_login_payload = {
+            "login": setup_and_teardown["login"]
+        }
 
         with allure.step("Send POST request without password"):
-            response = CourierPage.login_courier(payload)
+            response = CourierPage.login_courier(valid_login_payload)
 
         with allure.step("Validate response for missing password"):
             assert response.status_code == HTTP_STATUS_BAD_REQUEST, (
@@ -68,13 +75,15 @@ class TestCourierLogin:
 
     @allure.story("Courier Login Error Cases")
     @allure.title("Test courier login with incorrect password")
-    def test_login_with_incorrect_password(self, valid_login_payload):
+    def test_login_with_incorrect_password(self, setup_and_teardown):
         """Запрос с неправильным паролем возвращает ошибку."""
-        payload = valid_login_payload.copy()
-        payload["password"] = "wrong_password"
+        valid_login_payload = {
+            "login": setup_and_teardown["login"],
+            "password": "wrong_password"
+        }
 
         with allure.step("Send POST request with incorrect password"):
-            response = CourierPage.login_courier(payload)
+            response = CourierPage.login_courier(valid_login_payload)
 
         with allure.step("Validate response for incorrect password"):
             assert response.status_code == HTTP_STATUS_NOT_FOUND, (
@@ -87,13 +96,15 @@ class TestCourierLogin:
 
     @allure.story("Courier Login Error Cases")
     @allure.title("Test courier login with non-existent user")
-    def test_login_with_non_existent_user(self, valid_login_payload):
+    def test_login_with_non_existent_user(self, setup_and_teardown):
         """Запрос с несуществующим пользователем возвращает ошибку."""
-        payload = valid_login_payload.copy()
-        payload["login"] = "nonexistent_user"
+        valid_login_payload = {
+            "login": "nonexistent_user",
+            "password": setup_and_teardown["password"]
+        }
 
         with allure.step("Send POST request with non-existent user"):
-            response = CourierPage.login_courier(payload)
+            response = CourierPage.login_courier(valid_login_payload)
 
         with allure.step("Validate response for non-existent user"):
             assert response.status_code == HTTP_STATUS_NOT_FOUND, (
